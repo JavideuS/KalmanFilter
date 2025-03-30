@@ -2,6 +2,7 @@
 # Pkg.add("Plots")
 # Pkg.add("DataFrames")
 # Pkg.add("GLM")
+using LinearAlgebra
 using Plots # To graph points
 using GLM, DataFrames # To calculate regression via julia's GLM package
 
@@ -29,6 +30,12 @@ function linearRegression(x::Vector{Float64}, y::Vector{Float64}, n::Int)
     
     return A_inv, x_hat, p  # Return the plot too
 end
+
+# function plotFunctions(x::Vector{Float64}, y::Vector{Float64}, n::Int)
+#     linearRegression
+#     p = scatter(x, y, label="Data", title="Linear Regression (first $n points)", markersize=5, color=:blue,markerstrokewidth=0)
+#     return p
+# end
 
 function recursiveRegression(x::Vector{Float64}, y::Vector{Float64}, n::Int)
     # Initial regression with first n points
@@ -96,12 +103,11 @@ function recursiveRegression(x::Vector{Float64}, y::Vector{Float64}, n::Int)
 end
 
 # Call the function and capture the return values
-covar, x_hat = recursiveRegression(x, y, 10)
+#covar, x_hat = recursiveRegression(x, y, 10)
 
 function compareRegressions(x::Vector{Float64}, y::Vector{Float64}, n::Int)
     # Get your recursive regression result
     recursive_covar, recursive_x_hat, p1, p2 = recursiveRegression(x, y, n)
-    
     # Built-in regression using all data
     X = hcat(ones(length(x)), x)
     builtin_x_hat = X \ y
@@ -144,4 +150,86 @@ function compareRegressions(x::Vector{Float64}, y::Vector{Float64}, n::Int)
 end
 
 # Run the comparison
-compareRegressions(x, y, 10)
+#compareRegressions(x, y, 10)
+
+function covariance_matrix(variances::Vector{Float64}, covariances::Vector{Float64})
+    n = length(variances)
+    d = Diagonal(variances)
+    z = zeros(n, n)
+    counter = 1
+    for i in 2:n
+        for j in 1:i-1
+            z[i,j] = covariances[counter]
+            counter += 1
+        end
+    end
+    covar = Symmetric(d + z, :L)
+    # Be mind that setting type to matrices improves matrices performance
+    # Julia optimize calculations based on matrix structure
+    return covar
+end
+
+# Overloading when no parameters are passed
+function covariance_matrix(n::Int64,var::Float64=1.0, covar::Float64=0.5)
+    variances = ones(n) * var
+    # Factorial sum
+    n -= 1
+    triangular_num_fun = n*(n+1) ÷ 2 # \div mean integer division
+    covariances = ones(triangular_num_fun) * covar  
+    return covariance_matrix(variances, covariances)
+end
+
+function linearRegressionNoPlot(x::Vector{Float64}, y::Vector{Float64}, n::Int)
+    # Limit to n points
+    x = x[1:n]
+    A = hcat(ones(n), x)
+    y = y[1:n]
+    A_inv = inv(A' * A)
+    x_hat = A_inv * (A' * y)
+    return A_inv, x_hat
+end
+
+
+function CovarRecurrentRegression(x::Vector{Float64}, y::Vector{Float64}, n::Int)
+    covar, x_hat = linearRegressionNoPlot(x, y, n)
+    
+    x = x[n+1:end]
+    len = length(x)
+    current_A = hcat(ones(len), x)
+    y = y[n+1:end]
+
+    inv_measurement_covar = covariance_matrix(len)^-1
+    error_covar = covar  # In this case we suppose that the intial covariance matrix for the previous points was the identity
+
+    error_covar = error_covar + (current_A' * inv_measurement_covar * current_A)
+
+    kalman_gain = (error_covar^-1) * current_A' * inv_measurement_covar
+    
+    x_hat = x_hat + kalman_gain * (y - current_A * x_hat)  # Initial estimate
+
+
+    #x_hat = error_covar * (current_A' * temp_inv_covar * y)  # Initial estimate
+
+    # inv_error_covar = error_covar^-1
+    # for i in 2:length(x)
+    #     #Retrieving new data
+    #     current_A = [1; x[i]]
+    #     current_y = y[i]
+
+    #     inv_error_covar = inv_error_covar + (current_A' * temp_inv_covar * current_A)
+    #     kalman_gain = inv_error_covar^-1 * (current_A' * temp_inv_covar)
+
+    #     error = current_y - (current_A' * x_hat')
+    #     x_hat = x_hat + kalman_gain * error
+    # end
+
+    #println("Kalman Filter Coefficients: Intercept: ", x_hat[1], ", Slope: ", x_hat[2])
+    # Plotting
+    #p4 = scatter(x, y, label="Data", title="Kalman Filter Regression", markersize=5, color=:blue, markerstrokewidth=0)
+    #plot!(p4, x, x_hat[1] .+ x_hat[2] .* x, label="Kalman Filter Regression", color=:green, linewidth=2)
+    return x_hat #, p4
+end
+
+
+p_xd = CovarRecurrentRegression(x, y, 10)
+display(p_xd)
