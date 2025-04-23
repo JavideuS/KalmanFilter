@@ -1,0 +1,5 @@
+Strang, Linear Algebra and Learning from Data, páginas 162-165 y 308-309
+Bretscher, Linear Algebra with Applications, 5ª edición, páginas 236-249
+
+##To convert jl into jupyter notebook
+jupytext --to notebook script.jl
